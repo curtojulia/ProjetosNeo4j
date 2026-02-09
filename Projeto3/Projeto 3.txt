@@ -1,0 +1,28 @@
+Projeto 3:
+
+CREATE CONSTRAINT unique_usuario IF NOT EXISTS FOR (u:Usuario) REQUIRE u.id IS UNIQUE
+
+LOAD CSV WITH HEADERS FROM "file:///users.csv" As row
+CREATE (u:Usuario {nome: row.username, id: row.id,conta_criada: row.created_at})
+return u
+
+LOAD CSV WITH HEADERS FROM "file:///follows.csv" AS row
+WITH row WHERE row.follower_id IS NOT NULL AND row.followee_id IS NOT NULL
+MATCH (quemSeguiu:Usuario {id: row.follower_id})
+MATCH (foiSeguido:Usuario {id: row.followee_id})
+MERGE (quemSeguiu)-[:SEGUIU {dataFollow: row.created_at}]->(foiSeguido)
+RETURN COUNT(*) AS relacoes_criadas, quemSeguiu, foiSeguido
+
+LOAD CSV WITH HEADERS FROM "file:///comments.csv" AS row
+WITH row WHERE row.user_id IS NOT NULL AND row.id IS NOT NULL
+MATCH (u:Usuario {id: row.user_id})
+MERGE (c:Comentarios {id: row.id})
+ON CREATE SET c.comentario = row.comment_text, c.quando = row.created_at
+MERGE (u)-[:FEZ]->(c)
+RETURN COUNT(*) AS relacoes_criadas
+
+MATCH (u:Usuario)<-[:SEGUIU]-(follower)
+WITH u, COUNT(follower) AS total_seguidores
+ORDER BY total_seguidores DESC
+MATCH (u)<-[:SEGUIU]-(f)
+RETURN u, f
