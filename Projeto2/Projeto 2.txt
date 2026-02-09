@@ -3,33 +3,41 @@ Projeto 2:
 LOAD CSV WITH HEADERS FROM "file:///MusicInfo.csv" As row
 CREATE (a:Artista {nome: row.artist})
 CREATE (g:Genero {nome: row.genre})
-CREATE (m:Musica{id: toInteger(row.track_id),nome:row.name,ano:row.year})
+CREATE (m:Musica{id:row.track_id,nome:row.name,ano:row.year})
 CREATE (a)-[:FAZ]->(m)
 CREATE (m)-[:PERTENCE]->(g) 
 return a,m,g
 
-LOAD CSV WITH HEADERS FROM "file:///MusicInfo.csv" As row
-CREATE (a:Artista {nome: row.artist})
-CREATE (g:Genero {nome: row.genre})
-CREATE (m:Musica{id: toInteger(row.track_id),nome:row.name,ano:row.year})
-CREATE (a)-[:FAZ]->(m)
-CREATE (m)-[:PERTENCE]->(g) 
-return a,m,g
+LOAD CSV WITH HEADERS FROM "file:///UserListeningHistory.csv" AS row
+WITH COUNT(CASE WHEN row.id IS NULL OR row.id = "" THEN 1 END) AS nulos,
+     COUNT(*) AS total
+RETURN nulos, total, (nulos * 100.0 / total) AS percentual nulo
 
-CREATE CONSTRAINT unique_usuario IF NOT EXISTS FOR (u:Usuario) REQUIRE u.id IS UNIQUE;
+LOAD CSV WITH HEADERS FROM "file:///UserListeningHistory.csv" AS row
+WITH row.id AS id, COUNT(*) AS quantidade
+RETURN id, quantidade
+ORDER BY quantidade DESC
+LIMIT 20
 
-CALL () {
-  LOAD CSV WITH HEADERS FROM "file:///UserListeningHistory.csv" AS row
-  WITH row WHERE row.user_id IS NOT NULL AND row.user_id <> ""
-  MERGE (u:Usuario {id: row.user_id})
-} IN TRANSACTIONS OF 100 ROWS
-RETURN "Usuários criados com sucesso"
+CREATE CONSTRAINT unique_usuario IF NOT EXISTS FOR (u:Usuario) REQUIRE u.id IS UNIQUE
 
-CALL () {
-  LOAD CSV WITH HEADERS FROM "file:///UserListeningHistory.csv" AS row
-  WITH row WHERE row.user_id IS NOT NULL AND row.track_id IS NOT NULL AND row.user_id <> "" AND row.track_id <> ""
-  MATCH (u:Usuario {id: row.user_id})
-  MATCH (m:Musica {id: row.track_id})
-  MERGE (u)-[:ESCUTOU {playcount: toInteger(row.playcount)}]->(m)
-} IN TRANSACTIONS OF 100 ROWS
-RETURN "Relacionamentos criados com sucesso"
+LOAD CSV WITH HEADERS FROM "file:///UserListeningHistory.csv" AS row
+WITH row WHERE row.user_id IS NOT NULL AND row.user_id <> ""
+MERGE (u:Usuario {id: row.user_id})
+RETURN COUNT(u) AS usuarios_criados
+
+LOAD CSV WITH HEADERS FROM "file:///UserListeningHistory.csv" AS row
+WITH row WHERE row.user_id IS NOT NULL AND row.track_id IS NOT NULL
+MATCH (u:Usuario {id: row.user_id})
+MATCH (m:Musica {id: row.track_id})
+MERGE (u)-[:LISTENED_TO]->(m)
+RETURN COUNT(*) AS relacoes_criadas
+
+MATCH p=()-[:LISTENED_TO]->() RETURN p LIMIT 25;
+
+MATCH (u1:Usuario)-[:LISTENED_TO]->(m:Musica)<-[:LISTENED_TO]-(u2:Usuario)
+WHERE u1.id < u2.id
+WITH u1, u2, COUNT(m) AS musicas_em_comum
+RETURN u1.id, u2.id, musicas_em_comum
+ORDER BY musicas_em_comum DESC
+LIMIT 20
